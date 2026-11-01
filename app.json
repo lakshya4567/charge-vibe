@@ -1,0 +1,18 @@
+{
+  "expo": {
+    "name": "Charge Vide",
+    "slug": "charge-vide",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#080D0A",
+    "android": {
+      "package": "in.aether.chargevide",
+      "versionCode": 1,
+      "edgeToEdgeEnabled": true
+    },
+    "plugins": [
+      "expo-battery"
+    ]
+  }
+}
