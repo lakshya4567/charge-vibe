@@ -32,6 +32,7 @@ export default function App() {
   const gaze = useRef(new Animated.Value(0)).current;
   const glow = useRef(new Animated.Value(0.72)).current;
   const previousCharging = useRef(false);
+  const manualMoodUntil = useRef(0);
 
   useEffect(() => {
     let stateSub;
@@ -109,18 +110,37 @@ export default function App() {
     glowLoop.start();
     gazeLoop.start();
     blinkLoop.start();
+    // Give the pet a little life even when nobody is touching the screen.
+    const moodTimer = setInterval(() => {
+      if (Date.now() < manualMoodUntil.current) return;
+      setMoodIndex((current) => {
+        const choices = expressions.map((_, index) => index).filter((index) => index !== current && index !== 2);
+        return choices[Math.floor(Math.random() * choices.length)];
+      });
+    }, 11000);
     return () => {
       glowLoop.stop();
       gazeLoop.stop();
       blinkLoop.stop();
+      clearInterval(moodTimer);
     };
   }, [blink, gaze, glow]);
 
   const tapFace = () => {
+    manualMoodUntil.current = Date.now() + 9000;
     setMoodIndex((current) => (current + 1) % expressions.length);
     Animated.sequence([
       Animated.timing(blink, { toValue: 0.08, duration: 65, useNativeDriver: true }),
       Animated.spring(blink, { toValue: 1, useNativeDriver: true, speed: 22 }),
+    ]).start();
+  };
+
+  const holdFace = () => {
+    manualMoodUntil.current = Date.now() + 12000;
+    setMoodIndex(2); // A long press makes the little pet sleepy.
+    Animated.sequence([
+      Animated.timing(blink, { toValue: 0.06, duration: 180, useNativeDriver: true }),
+      Animated.timing(blink, { toValue: 0.35, duration: 220, useNativeDriver: true }),
     ]).start();
   };
 
@@ -146,8 +166,10 @@ export default function App() {
           <Text style={styles.speech}>{charging ? 'Yesss! Power time!' : mood.line}</Text>
           <Pressable
             onPress={tapFace}
+            onLongPress={holdFace}
+            delayLongPress={450}
             accessibilityRole="button"
-            accessibilityLabel="Tap the Charge Vide face to change its expression"
+            accessibilityLabel="Tap to change Charge Vide's expression, or press and hold to make it sleepy"
             style={styles.faceTapArea}
           >
             <Animated.View style={[styles.faceFeatures, { transform: [{ translateX: gaze }] }]}>
@@ -172,7 +194,7 @@ export default function App() {
             </Animated.View>
           </Pressable>
           <Text style={styles.mood}>{charging ? '⚡ FULL OF ENERGY' : mood.name}</Text>
-          <Text style={styles.tapHint}>TAP THE FACE TO PLAY</Text>
+          <Text style={styles.tapHint}>TAP TO PLAY  ·  HOLD TO SLEEP</Text>
         </View>
 
         <View style={styles.bottomPanel}>
