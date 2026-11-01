@@ -43,7 +43,14 @@ jobs:
       - name: Install Android platform
         shell: bash
         run: |
+          set +e
           yes | "$SDKMANAGER" --sdk_root="$ANDROID_HOME" --licenses
+          sdkmanager_status=${PIPESTATUS[1]}
+          set -e
+          if [ "$sdkmanager_status" -ne 0 ]; then
+            echo "sdkmanager --licenses failed with exit code $sdkmanager_status"
+            exit "$sdkmanager_status"
+          fi
           "$SDKMANAGER" --sdk_root="$ANDROID_HOME" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install JavaScript dependencies
