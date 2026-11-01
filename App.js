@@ -11,77 +11,116 @@ import {
 import * as Battery from 'expo-battery';
 import { StatusBar } from 'expo-status-bar';
 
-const LIME = '#C5F66B';
-
+// Charge Vide is a face-first digital pet: the screen is its face.
+// The visual design is original and uses simple glowing OLED-style features.
 const expressions = [
-  { eyes: '•     •', mouth: 'ᴗ', mood: 'feeling good', line: 'Hey! You came back.' },
-  { eyes: '◉     ◉', mouth: 'o', mood: 'curious', line: 'What are we doing?' },
-  { eyes: '—     —', mouth: 'ᴗ', mood: 'sleepy', line: 'Five more minutes…' },
-  { eyes: '✦     ✦', mouth: 'ᴗ', mood: 'excited', line: 'LET’S GOOO!' },
-  { eyes: '⌁     ⌁', mouth: '﹏', mood: 'silly', line: 'Boop! Hehe.' },
+  { name: 'HAPPY', line: 'Hey! You’re back.', eyeW: 34, eyeH: 54, radius: 22, mouth: '⌣' },
+  { name: 'CURIOUS', line: 'Hmm? What’s that?', eyeW: 39, eyeH: 64, radius: 22, mouth: 'o' },
+  { name: 'SLEEPY', line: 'Just five more minutes…', eyeW: 48, eyeH: 12, radius: 12, mouth: 'ᴗ' },
+  { name: 'SURPRISED', line: 'Whoa! Hello!', eyeW: 43, eyeH: 67, radius: 24, mouth: 'O' },
+  { name: 'PLAYFUL', line: 'Boop! Do it again.', eyeW: 37, eyeH: 47, radius: 22, mouth: 'ω' },
 ];
+
+const CYAN = '#72DFFF';
 
 export default function App() {
   const [battery, setBattery] = useState(0.68);
   const [charging, setCharging] = useState(false);
   const [moodIndex, setMoodIndex] = useState(0);
   const [batteryAvailable, setBatteryAvailable] = useState(true);
-  const bob = useRef(new Animated.Value(0)).current;
   const blink = useRef(new Animated.Value(1)).current;
-  const pulse = useRef(new Animated.Value(1)).current;
+  const gaze = useRef(new Animated.Value(0)).current;
+  const glow = useRef(new Animated.Value(0.72)).current;
+  const previousCharging = useRef(false);
 
   useEffect(() => {
-    const bobLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(bob, { toValue: -7, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(bob, { toValue: 0, duration: 1300, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-      ])
-    );
-    const pulseLoop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.035, duration: 1800, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 1800, useNativeDriver: true }),
-      ])
-    );
-    bobLoop.start();
-    pulseLoop.start();
-
     let stateSub;
     let levelSub;
+    let alive = true;
+
     const loadBattery = async () => {
       try {
         const [level, state] = await Promise.all([
           Battery.getBatteryLevelAsync(),
           Battery.getBatteryStateAsync(),
         ]);
+        if (!alive) return;
         if (level >= 0) setBattery(level);
-        setCharging(state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL);
         setBatteryAvailable(level >= 0);
+        const isCharging = state === Battery.BatteryState.CHARGING || state === Battery.BatteryState.FULL;
+        setCharging(isCharging);
+        previousCharging.current = isCharging;
+
         stateSub = Battery.addBatteryStateListener(({ batteryState }) => {
-          setCharging(batteryState === Battery.BatteryState.CHARGING || batteryState === Battery.BatteryState.FULL);
+          const next = batteryState === Battery.BatteryState.CHARGING || batteryState === Battery.BatteryState.FULL;
+          setCharging(next);
         });
         levelSub = Battery.addBatteryLevelListener(({ batteryLevel }) => {
           if (batteryLevel >= 0) setBattery(batteryLevel);
         });
-      } catch (e) {
-        setBatteryAvailable(false);
+      } catch (error) {
+        if (alive) setBatteryAvailable(false);
       }
     };
-    loadBattery();
 
+    loadBattery();
     return () => {
-      bobLoop.stop();
-      pulseLoop.stop();
+      alive = false;
       stateSub?.remove();
       levelSub?.remove();
     };
-  }, [bob, pulse]);
+  }, []);
 
-  const react = () => {
+  // React to plugging in and unplugging with a distinct expression.
+  useEffect(() => {
+    if (charging && !previousCharging.current) setMoodIndex(3);
+    if (!charging && previousCharging.current) setMoodIndex(2);
+    previousCharging.current = charging;
+  }, [charging]);
+
+  // Gentle OLED eye glow and occasional glance/blink keep the face alive.
+  useEffect(() => {
+    const glowLoop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(glow, { toValue: 1, duration: 1700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(glow, { toValue: 0.68, duration: 1700, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ])
+    );
+    const gazeLoop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(1800),
+        Animated.timing(gaze, { toValue: 7, duration: 260, useNativeDriver: true }),
+        Animated.delay(650),
+        Animated.timing(gaze, { toValue: -6, duration: 420, useNativeDriver: true }),
+        Animated.delay(500),
+        Animated.timing(gaze, { toValue: 0, duration: 300, useNativeDriver: true }),
+        Animated.delay(2200),
+      ])
+    );
+    const blinkLoop = Animated.loop(
+      Animated.sequence([
+        Animated.delay(2600),
+        Animated.timing(blink, { toValue: 0.08, duration: 85, useNativeDriver: true }),
+        Animated.delay(90),
+        Animated.timing(blink, { toValue: 1, duration: 130, useNativeDriver: true }),
+        Animated.delay(3200),
+      ])
+    );
+    glowLoop.start();
+    gazeLoop.start();
+    blinkLoop.start();
+    return () => {
+      glowLoop.stop();
+      gazeLoop.stop();
+      blinkLoop.stop();
+    };
+  }, [blink, gaze, glow]);
+
+  const tapFace = () => {
     setMoodIndex((current) => (current + 1) % expressions.length);
     Animated.sequence([
-      Animated.spring(blink, { toValue: 0.88, useNativeDriver: true, speed: 25 }),
-      Animated.spring(blink, { toValue: 1, useNativeDriver: true, speed: 18 }),
+      Animated.timing(blink, { toValue: 0.08, duration: 65, useNativeDriver: true }),
+      Animated.spring(blink, { toValue: 1, useNativeDriver: true, speed: 22 }),
     ]).start();
   };
 
@@ -90,95 +129,113 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <StatusBar style="light" />
+      <StatusBar style="light" backgroundColor="#000000" />
       <View style={styles.page}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.kicker}>YOUR LITTLE CHARGING COMPANION</Text>
             <Text style={styles.brand}>charge vide</Text>
+            <Text style={styles.subtitle}>YOUR POCKET-SIZED DIGITAL PET</Text>
           </View>
-          <View style={styles.livePill}>
-            <View style={[styles.liveDot, charging && styles.liveDotOn]} />
-            <Text style={styles.liveText}>{charging ? 'CHARGING' : 'IDLE'}</Text>
+          <View style={styles.status}>
+            <View style={[styles.statusDot, charging && styles.statusDotOn]} />
+            <Text style={styles.statusText}>{charging ? 'CHARGING' : 'IDLE'}</Text>
           </View>
         </View>
 
-        <View style={styles.stage}>
-          <Text style={styles.speech}>{charging ? 'Yay! More energy!' : mood.line}</Text>
-          <Pressable onPress={react} accessibilityRole="button" accessibilityLabel="Tap Charge Vide bot to change its expression">
-            <Animated.View style={[styles.petWrap, { transform: [{ translateY: bob }, { scale: pulse }] }]}>
-              <View style={styles.botShadow} />
-              <View style={styles.bot}>
-                <View style={styles.antennaStem} />
-                <View style={styles.antennaBall} />
-                <Animated.View style={[styles.face, { transform: [{ scaleY: blink }] }]}>
-                  <Text style={styles.eyes}>{mood.eyes}</Text>
-                  <Text style={styles.mouth}>{mood.mouth}</Text>
-                  <View style={styles.cheekLeft} />
-                  <View style={styles.cheekRight} />
-                </Animated.View>
-                <View style={styles.botBadge}><Text style={styles.bolt}>ϟ</Text></View>
-              </View>
+        <View style={styles.faceStage}>
+          <Text style={styles.speech}>{charging ? 'Yesss! Power time!' : mood.line}</Text>
+          <Pressable
+            onPress={tapFace}
+            accessibilityRole="button"
+            accessibilityLabel="Tap the Charge Vide face to change its expression"
+            style={styles.faceTapArea}
+          >
+            <Animated.View style={[styles.faceFeatures, { transform: [{ translateX: gaze }] }]}>
+              <Animated.View style={[styles.eyesRow, { transform: [{ scaleY: blink }] }]}>
+                {[0, 1].map((eye) => (
+                  <Animated.View
+                    key={eye}
+                    style={[
+                      styles.eye,
+                      {
+                        width: mood.eyeW,
+                        height: mood.eyeH,
+                        borderRadius: mood.radius,
+                        opacity: glow,
+                        shadowOpacity: 0.35,
+                      },
+                    ]}
+                  />
+                ))}
+              </Animated.View>
+              <Text style={styles.mouth}>{mood.mouth}</Text>
             </Animated.View>
           </Pressable>
-          <Text style={styles.moodLabel}>{charging ? 'EXCITED TO BE CHARGING' : mood.mood.toUpperCase()}</Text>
-          <Text style={styles.tapHint}>TAP YOUR LITTLE BOT</Text>
+          <Text style={styles.mood}>{charging ? '⚡ FULL OF ENERGY' : mood.name}</Text>
+          <Text style={styles.tapHint}>TAP THE FACE TO PLAY</Text>
         </View>
 
-        <View style={styles.batteryCard}>
-          <View style={styles.batteryHead}>
-            <Text style={styles.cardTitle}>BATTERY LEVEL</Text>
-            <Text style={styles.percent}>{percent}<Text style={styles.percentSign}>%</Text></Text>
+        <View style={styles.bottomPanel}>
+          <View style={styles.batteryTop}>
+            <Text style={styles.panelLabel}>PHONE BATTERY</Text>
+            <Text style={styles.percent}>{percent}<Text style={styles.percentUnit}>%</Text></Text>
           </View>
           <View style={styles.track}>
             <View style={[styles.fill, { width: batteryAvailable ? `${Math.max(0, Math.min(1, battery)) * 100}%` : '68%' }]} />
           </View>
-          <View style={styles.batteryFoot}>
-            <Text style={styles.footText}>{batteryAvailable ? 'Live battery reading' : 'Battery reading unavailable'}</Text>
-            <Text style={styles.footText}>{charging ? 'Powering up ⚡' : 'Waiting for a little energy'}</Text>
+          <View style={styles.batteryBottom}>
+            <Text style={styles.hint}>{batteryAvailable ? 'Live battery level' : 'Battery status unavailable'}</Text>
+            <Text style={styles.hint}>{charging ? 'Getting energized' : 'Waiting for a charger'}</Text>
           </View>
         </View>
-
-        <Text style={styles.footer}>A tiny spark of personality. ⚡</Text>
+        <Text style={styles.footer}>A little personality, on a black screen.</Text>
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe: { flex: 1, backgroundColor: '#080D0A' },
-  page: { flex: 1, paddingHorizontal: 24, paddingTop: 18, paddingBottom: 16 },
+  safe: { flex: 1, backgroundColor: '#000000' },
+  page: { flex: 1, backgroundColor: '#000000', paddingHorizontal: 25, paddingTop: 18, paddingBottom: 18 },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  kicker: { color: '#829187', fontSize: 9, letterSpacing: 1.7, fontWeight: '800' },
-  brand: { color: '#F2F8F3', fontSize: 29, fontWeight: '900', letterSpacing: -1.2, marginTop: 3 },
-  livePill: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#17231B', paddingHorizontal: 11, paddingVertical: 8, borderRadius: 30 },
-  liveDot: { width: 7, height: 7, borderRadius: 5, backgroundColor: '#829187', marginRight: 7 },
-  liveDotOn: { backgroundColor: LIME },
-  liveText: { color: LIME, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  stage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  speech: { color: '#E6F1E8', fontSize: 17, fontWeight: '700', marginBottom: 26 },
-  petWrap: { alignItems: 'center', justifyContent: 'center', width: 260, height: 290 },
-  botShadow: { position: 'absolute', bottom: 5, width: 185, height: 22, borderRadius: 100, backgroundColor: '#000', opacity: 0.45 },
-  bot: { width: 218, height: 235, borderRadius: 76, backgroundColor: LIME, borderWidth: 3, borderColor: '#E2FFB5', alignItems: 'center', justifyContent: 'center', shadowColor: LIME, shadowOpacity: 0.2, shadowRadius: 28, elevation: 15 },
-  antennaStem: { position: 'absolute', top: -24, width: 7, height: 29, borderRadius: 8, backgroundColor: LIME },
-  antennaBall: { position: 'absolute', top: -31, width: 16, height: 16, borderRadius: 10, backgroundColor: '#E2FFB5' },
-  face: { width: 172, height: 132, borderRadius: 46, backgroundColor: '#142019', borderWidth: 2, borderColor: '#304A35', alignItems: 'center', justifyContent: 'center' },
-  eyes: { color: '#D1FF9B', fontSize: 32, fontWeight: '900', letterSpacing: 4, marginTop: 5 },
-  mouth: { color: '#D1FF9B', fontSize: 30, fontWeight: '800', marginTop: -1 },
-  cheekLeft: { position: 'absolute', left: 13, top: 83, width: 13, height: 7, borderRadius: 10, backgroundColor: '#8DCB55', opacity: 0.7 },
-  cheekRight: { position: 'absolute', right: 13, top: 83, width: 13, height: 7, borderRadius: 10, backgroundColor: '#8DCB55', opacity: 0.7 },
-  botBadge: { position: 'absolute', bottom: 12, width: 29, height: 23, borderRadius: 10, backgroundColor: '#9BDD50', alignItems: 'center', justifyContent: 'center' },
-  bolt: { color: '#426B28', fontSize: 18, fontWeight: '900' },
-  moodLabel: { color: LIME, fontSize: 10, fontWeight: '900', letterSpacing: 1.8, marginTop: 18 },
-  tapHint: { color: '#66736A', fontSize: 9, letterSpacing: 1.5, marginTop: 9 },
-  batteryCard: { backgroundColor: '#121A15', borderColor: '#26362A', borderWidth: 1, borderRadius: 22, padding: 18 },
-  batteryHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 13 },
-  cardTitle: { color: '#92A296', fontSize: 10, fontWeight: '900', letterSpacing: 1.5 },
-  percent: { color: '#DFFFB6', fontSize: 25, fontWeight: '900' },
-  percentSign: { fontSize: 14, color: '#A7D66E' },
-  track: { height: 8, borderRadius: 8, backgroundColor: '#29352C', overflow: 'hidden' },
-  fill: { height: '100%', backgroundColor: LIME, borderRadius: 8 },
-  batteryFoot: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 12 },
-  footText: { color: '#748178', fontSize: 9 },
-  footer: { color: '#66736A', textAlign: 'center', fontSize: 11, marginTop: 15 },
+  brand: { color: '#F4FAFF', fontSize: 27, fontWeight: '800', letterSpacing: -1 },
+  subtitle: { color: '#56616D', fontSize: 8, letterSpacing: 1.8, fontWeight: '700', marginTop: 4 },
+  status: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: '#202A32', borderRadius: 20, paddingHorizontal: 10, paddingVertical: 7 },
+  statusDot: { width: 6, height: 6, borderRadius: 5, backgroundColor: '#65717B', marginRight: 7 },
+  statusDotOn: { backgroundColor: CYAN },
+  statusText: { color: '#A9B8C4', fontSize: 8, fontWeight: '800', letterSpacing: 1 },
+  faceStage: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  speech: { color: '#AAB8C4', fontSize: 15, fontWeight: '600', marginBottom: 48 },
+  faceTapArea: { width: '100%', minHeight: 220, alignItems: 'center', justifyContent: 'center' },
+  faceFeatures: { alignItems: 'center', justifyContent: 'center' },
+  eyesRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 42 },
+  eye: {
+    backgroundColor: CYAN,
+    shadowColor: CYAN,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 0 },
+    elevation: 12,
+  },
+  mouth: {
+    color: CYAN,
+    fontSize: 43,
+    lineHeight: 58,
+    fontWeight: '500',
+    textAlign: 'center',
+    textShadowColor: CYAN,
+    textShadowRadius: 15,
+    marginTop: 10,
+  },
+  mood: { color: CYAN, fontSize: 9, fontWeight: '800', letterSpacing: 2.6, marginTop: 36 },
+  tapHint: { color: '#4C5964', fontSize: 8, letterSpacing: 1.8, marginTop: 12 },
+  bottomPanel: { backgroundColor: '#090D11', borderColor: '#18222B', borderWidth: 1, borderRadius: 18, padding: 17 },
+  batteryTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
+  panelLabel: { color: '#71808C', fontSize: 9, fontWeight: '800', letterSpacing: 1.5 },
+  percent: { color: '#E8F7FF', fontSize: 23, fontWeight: '800' },
+  percentUnit: { color: '#8297A5', fontSize: 12 },
+  track: { height: 5, backgroundColor: '#1C2932', borderRadius: 6, overflow: 'hidden' },
+  fill: { height: '100%', backgroundColor: CYAN, borderRadius: 6 },
+  batteryBottom: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 11 },
+  hint: { color: '#65737D', fontSize: 9 },
+  footer: { color: '#3E4A54', fontSize: 9, textAlign: 'center', marginTop: 14 },
 });
